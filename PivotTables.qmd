@@ -1,0 +1,128 @@
+---
+title: "Pivot Tables"
+author: "Marc Weber"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+html:
+    self-contained: true
+---
+## Load libraries
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(sf)
+library(dplyr)
+library(pivottabler)
+library(mapview)
+mapviewOptions(fgb=FALSE)
+```
+
+## Enrich source GIS layers
+
+### Generate jurisdictional information
+- Read in necessary spatial layers from file geodatabase
+- Combine the city and UGA layer with the county layer so that we have one dataset that represents all three jurisdictional types
+
+See available layers in the geodabase
+```{r, error=FALSE, warning=FALSE}
+gdb_loc <- 'C:/Users/mwebe/UW/GIS550/Week6/whatcom_data_tables/Whatcom_Data_Tables.gdb'
+st_layers(gdb_loc)
+```
+
+#### Read each layer into a spatial `sf` object in R
+```{r, error=FALSE, warning=FALSE}
+fish <- read_sf(gdb_loc, 'fish_distribution_whatcom')
+watercourses <- read_sf(gdb_loc, 'watercourses')
+uga <- read_sf(gdb_loc, 'Whatcom_City_UGA')
+waterbodies <- read_sf(gdb_loc, 'waterbodies')
+county <- read_sf(gdb_loc, 'Whatcom_County')
+wria <- read_sf(gdb_loc, 'WRIA')
+```
+
+### Union County and UGA
+To union data in R is a little different than in ArcGIS...
+
+- first erase part of county with UGA polygons
+- keep only fields interested in so field the same in both features
+- then combine
+```{r, error=FALSE, warning=FALSE}
+county <- st_difference(county, st_union(uga)) 
+county <- county |> 
+  dplyr::select(Jurisdiction=JURISDIC_3) |> 
+  dplyr::mutate(CITY_NM='',UGA_NM='')
+uga <- uga |> 
+  dplyr::select(CITY_NM,UGA_NM) |> 
+  dplyr::mutate(Jurisdiction='')
+county_uga <- rbind(uga, county)
+
+mapview(county_uga, col.regions=NA, color='blue')
+```
+
+### Assign Jurisdiction
+- If CITY_NM exists use that
+- Otherwise use UGA_NM
+- We already used County name for unincorporated county in step above
+```{r, error=FALSE, warning=FALSE}
+county_uga <- county_uga |> 
+  mutate(Jurisdiction = case_when(
+    (Jurisdiction=="" & !CITY_NM=="") ~ CITY_NM,
+    (Jurisdiction=="" & CITY_NM=="") ~ UGA_NM,
+    TRUE ~ Jurisdiction))
+
+```
+
+Unique values for Jurisdiction:
+```{r, error=FALSE, warning=FALSE}
+unique(county_uga$Jurisdiction)
+```
+
+### Add WRIA information
+It's just  spatial join - we'll just map the WRIA here as well
+```{r, error=FALSE, warning=FALSE}
+wria <- wria |> 
+  dplyr::select(WRIA_NM)
+mapview(wria)
+county_uga_wria <- st_join(county_uga, wria)
+```
+
+### Intersect with Fish Distribution
+Create `Calc_Miles` field and re-calculate after intersection
+```{r, error=FALSE, warning=FALSE}
+fish <- fish |> 
+  dplyr::select(SPECIES, LLID_STRM_,DISTTYPE_D,USETYPE_DE) |> 
+  dplyr::mutate(Calc_Miles=as.numeric(st_length(fish)*0.000189394))
+
+county_uga_wria_fish <- st_intersection(fish, county_uga_wria)
+
+county_uga_wria_fish <- county_uga_wria_fish |> 
+  dplyr::mutate(Cacl_Miles=as.numeric(st_length(county_uga_wria_fish)*0.000189394))
+```
+
+## Try some Pivot Tables
+### Example 1
+```{r, error=FALSE, warning=FALSE}
+county_uga_wria_fish$Jurisdiction <- factor(county_uga_wria_fish$Jurisdiction)
+county_uga_wria_fish$LLID_STRM_ <- factor(county_uga_wria_fish$LLID_STRM_)
+county_uga_wria_fish$SPECIES <- factor(county_uga_wria_fish$SPECIES)
+
+pt <- PivotTable$new()
+pt$addData(st_drop_geometry(county_uga_wria_fish))
+pt$addRowDataGroups("Jurisdiction")
+pt$addRowDataGroups("LLID_STRM_") 
+pt$addRowDataGroups("SPECIES")
+pt$defineCalculation(calculationName="SumCalcMiles", caption="Sum Calc Miles", 
+                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)", format="%.7f")
+pt$renderPivot()
+```
+
+### Example 2
+```{r, error=FALSE, warning=FALSE}
+county_uga_wria_fish <- county_uga_wria_fish |> 
+  dplyr::filter(Jurisdiction=='Bellingham')
+pt <- PivotTable$new()
+pt$addData(st_drop_geometry(county_uga_wria_fish))
+pt$addRowDataGroups("Jurisdiction")
+pt$addRowDataGroups("LLID_STRM_") 
+pt$addRowDataGroups("DISTTYPE_D") 
+pt$addRowDataGroups("SPECIES")
+pt$defineCalculation(calculationName="SumCalcMiles", caption="Sum Calc Miles", 
+                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)", format="%.7f")
+pt$renderPivot()
+```
