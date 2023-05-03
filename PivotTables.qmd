@@ -5,6 +5,11 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 html:
     self-contained: true
 ---
+
+## Background
+The steps here parallel and produce same results as our ArcGISPro examples and running Pivot tables in Excel.
+
+To see the code that generates this reproducible research example see the [GitHub repository](https://github.com/mhweber/UW_GIS_Material/blob/main/PivotTables.qmd).  This html of R code steps is generated using Quarto, which is the next generation of what is called R markdown which is used for 'literate programming' where you fold you documentation, images, links, etc together with your code steps which can be passed along and re-run by others to produce the exact same results.
 ## Load libraries
 ```{r, error=FALSE, warning=FALSE, message=FALSE}
 library(sf)
