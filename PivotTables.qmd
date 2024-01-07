@@ -27,7 +27,7 @@ mapviewOptions(fgb=FALSE)
 
 See available layers in the geodabase
 ```{r, error=FALSE, warning=FALSE}
-gdb_loc <- 'C:/Users/mwebe/UW/GIS550/Week6/whatcom_data_tables/Whatcom_Data_Tables.gdb'
+gdb_loc <- 'C:/Users/mwebe/UW Program/GIS550/Week6/whatcom_data_tables/Whatcom_Data_Tables.gdb'
 st_layers(gdb_loc)
 ```
 
@@ -113,7 +113,7 @@ pt$addRowDataGroups("Jurisdiction")
 pt$addRowDataGroups("LLID_STRM_") 
 pt$addRowDataGroups("SPECIES")
 pt$defineCalculation(calculationName="SumCalcMiles", caption="Sum Calc Miles", 
-                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)", format="%.7f")
+                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)")
 pt$renderPivot()
 ```
 
