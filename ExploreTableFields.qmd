@@ -1,5 +1,5 @@
 ---
-title: "Pivot Tables"
+title: "Explore Table Fields"
 author: "Marc Weber"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 html:
@@ -7,127 +7,83 @@ html:
 ---
 
 ## Background
-The steps here parallel and produce same results as our ArcGISPro examples and running Pivot tables in Excel.
+Explore our feature and table data in R
 
-To see the code that generates this reproducible research example see the [GitHub repository](https://github.com/mhweber/UW_GIS_Material/blob/main/PivotTables.qmd).  This html of R code steps is generated using Quarto, which is the next generation of what is called R markdown which is used for 'literate programming' where you fold you documentation, images, links, etc together with your code steps which can be passed along and re-run by others to produce the exact same results.
+
 ## Load libraries
 ```{r, error=FALSE, warning=FALSE, message=FALSE}
 library(sf)
 library(dplyr)
-library(pivottabler)
 library(mapview)
-mapviewOptions(fgb=FALSE)
+mapviewOptions(fgb=FALSE, basemaps='OpenStreetMap')
+library(ggplot2)
 ```
 
-## Enrich source GIS layers
 
-### Generate jurisdictional information
+### Read in data
 - Read in necessary spatial layers from file geodatabase
-- Combine the city and UGA layer with the county layer so that we have one dataset that represents all three jurisdictional types
 
-See available layers in the geodabase
+- First we    can see available layers in the geodabase
 ```{r, error=FALSE, warning=FALSE}
-gdb_loc <- 'C:/Users/mwebe/UW Program/GIS550/Week6/whatcom_data_tables/Whatcom_Data_Tables.gdb'
+gdb_loc <- 'C:/Users/mwebe/UW Program/GIS530/Week 1/Exercise/MT_database.gdb'
 st_layers(gdb_loc)
 ```
 
 #### Read each layer into a spatial `sf` object in R
 ```{r, error=FALSE, warning=FALSE}
-fish <- read_sf(gdb_loc, 'fish_distribution_whatcom')
-watercourses <- read_sf(gdb_loc, 'watercourses')
-uga <- read_sf(gdb_loc, 'Whatcom_City_UGA')
-waterbodies <- read_sf(gdb_loc, 'waterbodies')
-county <- read_sf(gdb_loc, 'Whatcom_County')
-wria <- read_sf(gdb_loc, 'WRIA')
+lcov <- read_sf(gdb_loc, 'landcover')
+mt_county <- read_sf(gdb_loc, 'mt_county')
+mt_reservations <- read_sf(gdb_loc, 'mt_reservations')
+ethnic_pop <- read_sf(gdb_loc, 'ethnic_pop')
+veg_type <- read_sf(gdb_loc, 'veg_type')
 ```
 
-### Union County and UGA
-To union data in R is a little different than in ArcGIS...
+### View reservations and counties
 
-- first erase part of county with UGA polygons
-- keep only fields interested in so field the same in both features
-- then combine
 ```{r, error=FALSE, warning=FALSE}
-county <- st_difference(county, st_union(uga)) 
-county <- county |> 
-  dplyr::select(Jurisdiction=JURISDIC_3) |> 
-  dplyr::mutate(CITY_NM='',UGA_NM='')
-uga <- uga |> 
-  dplyr::select(CITY_NM,UGA_NM) |> 
-  dplyr::mutate(Jurisdiction='')
-county_uga <- rbind(uga, county)
-
-mapview(county_uga, col.regions=NA, color='blue')
+mapview(mt_county, col.regions=NA, color='blue') + mapview(mt_reservations, col.regions=NA, color='red')
 ```
 
-### Assign Jurisdiction
-- If CITY_NM exists use that
-- Otherwise use UGA_NM
-- We already used County name for unincorporated county in step above
+### Use `str` (which means 'structure') to function look at data fields
+Again, just like doing 'fields' with our table in ArcGIS Pro
 ```{r, error=FALSE, warning=FALSE}
-county_uga <- county_uga |> 
-  mutate(Jurisdiction = case_when(
-    (Jurisdiction=="" & !CITY_NM=="") ~ CITY_NM,
-    (Jurisdiction=="" & CITY_NM=="") ~ UGA_NM,
-    TRUE ~ Jurisdiction))
-
+str(lcov)
 ```
 
-Unique values for Jurisdiction:
+### Check for duplicates
+Are all the values of 'CLASS' in landcover unique?
 ```{r, error=FALSE, warning=FALSE}
-unique(county_uga$Jurisdiction)
+any(duplicated(lcov$CLASS))
+```
+We can simply list unique occurrences of them as well - `if there were duplicates, this would `unique` gives us a listing of all unique values for a categorical variable
+```{r, error=FALSE, warning=FALSE}
+unique(lcov$CLASS)
 ```
 
-### Add WRIA information
-It's just  spatial join - we'll just map the WRIA here as well
+### How about the vegetation type table?
 ```{r, error=FALSE, warning=FALSE}
-wria <- wria |> 
-  dplyr::select(WRIA_NM)
-mapview(wria)
-county_uga_wria <- st_join(county_uga, wria)
+head(veg_type)
 ```
 
-### Intersect with Fish Distribution
-Create `Calc_Miles` field and re-calculate after intersection
 ```{r, error=FALSE, warning=FALSE}
-fish <- fish |> 
-  dplyr::select(SPECIES, LLID_STRM_,DISTTYPE_D,USETYPE_DE) |> 
-  dplyr::mutate(Calc_Miles=as.numeric(st_length(fish)*0.000189394))
-
-county_uga_wria_fish <- st_intersection(fish, county_uga_wria)
-
-county_uga_wria_fish <- county_uga_wria_fish |> 
-  dplyr::mutate(Cacl_Miles=as.numeric(st_length(county_uga_wria_fish)*0.000189394))
+any(duplicated(veg_type$CLASS))
 ```
 
-## Try some Pivot Tables
-### Example 1
+### Join veg type to landcover
+We specify 'CLASS' as the join variable but since it occurs in both tables and spelled the same it would use 'CLASS' without our specifying
 ```{r, error=FALSE, warning=FALSE}
-county_uga_wria_fish$Jurisdiction <- factor(county_uga_wria_fish$Jurisdiction)
-county_uga_wria_fish$LLID_STRM_ <- factor(county_uga_wria_fish$LLID_STRM_)
-county_uga_wria_fish$SPECIES <- factor(county_uga_wria_fish$SPECIES)
-
-pt <- PivotTable$new()
-pt$addData(st_drop_geometry(county_uga_wria_fish))
-pt$addRowDataGroups("Jurisdiction")
-pt$addRowDataGroups("LLID_STRM_") 
-pt$addRowDataGroups("SPECIES")
-pt$defineCalculation(calculationName="SumCalcMiles", caption="Sum Calc Miles", 
-                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)")
-pt$renderPivot()
+lcov <- left_join(lcov, veg_type, by='CLASS')
+head(lcov)
 ```
 
-### Example 2
+### Make a chart
+We're using 'piped' expressions here, part of the 'tidyverse' approach in R
 ```{r, error=FALSE, warning=FALSE}
-county_uga_wria_fish <- county_uga_wria_fish |> 
-  dplyr::filter(Jurisdiction=='Bellingham')
-pt <- PivotTable$new()
-pt$addData(st_drop_geometry(county_uga_wria_fish))
-pt$addRowDataGroups("Jurisdiction")
-pt$addRowDataGroups("LLID_STRM_") 
-pt$addRowDataGroups("DISTTYPE_D") 
-pt$addRowDataGroups("SPECIES")
-pt$defineCalculation(calculationName="SumCalcMiles", caption="Sum Calc Miles", 
-                     summariseExpression="sum(Calc_Miles, na.rm=TRUE)", format="%.7f")
-pt$renderPivot()
+lcov |> 
+  dplyr::group_by(LANDCOVER) |> 
+  dplyr::summarize(ACRES = sum(ACRES)) |> 
+  ggplot(aes(x=LANDCOVER, y=ACRES)) +
+    geom_bar(stat="identity")+ 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  ggtitle("Total Acres by Landcover Type")
 ```
