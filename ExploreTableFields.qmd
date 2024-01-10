@@ -4,6 +4,7 @@ author: "Marc Weber"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 html:
     self-contained: true
+    embed-resources: true
 ---
 
 ## Background
