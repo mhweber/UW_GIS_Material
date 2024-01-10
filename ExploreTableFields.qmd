@@ -2,8 +2,8 @@
 title: "Explore Table Fields"
 author: "Marc Weber"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-html:
-    self-contained: true
+format:
+  html:
     embed-resources: true
 ---
 
