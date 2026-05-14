@@ -27,7 +27,7 @@ mapviewOptions(fgb=FALSE)
 
 See available layers in the geodabase
 ```{r, error=FALSE, warning=FALSE}
-gdb_loc <- 'C:/Users/mwebe/UW Program/GIS550/Week6/whatcom_data_tables/Whatcom_Data_Tables.gdb'
+gdb_loc <- 'C:/Users/mwebe/OneDrive/UW Program/GIS550/2026/Week 7/Exercise/whatcom_data_tables.gdb'
 st_layers(gdb_loc)
 ```
 
